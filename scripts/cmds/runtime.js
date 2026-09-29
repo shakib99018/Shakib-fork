@@ -1,50 +1,55 @@
 module.exports = {
-  config: {
-    name: "runtime",
-    aliases: ["rtm"],
-    version: "2.0.0",
-    author: "𝐌𝐚𝐑𝐮𝐅",
-    countDown: 0,
-    role: 0,
+ config: {
+ name: "runtime",
+ aliases: ["rtm"],
+ version: "3.0.0",
+ author: "Sakib",
+ countDown: 0,
+ role: 0,
 
-    description: {
-      en: "Show bot runtime."
-    },
+ description: {
+ en: "Show the bot runtime."
+ },
 
-    category: "system",
+ category: "system",
 
-    guide: {
-      en: "{pn}"
-    }
-  },
+ guide: {
+ en: "{pn}"
+ }
+ },
 
-  onStart: async function ({ message }) {
-    const uptime = process.uptime();
+ onStart: async function ({ message }) {
+ try {
+ const uptime = process.uptime();
 
-    const days = Math.floor(uptime / 86400);
-    const hours = Math.floor((uptime % 86400) / 3600);
-    const minutes = Math.floor((uptime % 3600) / 60);
-    const seconds = Math.floor(uptime % 60);
+ const days = Math.floor(uptime / 86400);
+ const hours = Math.floor((uptime % 86400) / 3600);
+ const minutes = Math.floor((uptime % 3600) / 60);
+ const seconds = Math.floor(uptime % 60);
 
-    let runtime = "";
+ let runtime = "";
 
-    if (days > 0) {
-      runtime += `${days}d `;
-    }
+ if (days > 0) runtime += `${days}d `;
+ if (hours > 0) runtime += `${hours}h `;
+ if (minutes > 0) runtime += `${minutes}m `;
 
-    if (hours > 0) {
-      runtime += `${hours}h `;
-    }
+ runtime += `${seconds}s`;
 
-    if (minutes > 0) {
-      runtime += `${minutes}m `;
-    }
+ const msg =
+`╭──────────────╮
+ ⏱️ 𝐑𝐔𝐍𝐓𝐈𝐌𝐄
+╰──────────────╯
 
-    runtime += `${seconds}s`;
+🚀 Running Time » ${runtime}
+🤖 Status » Online
+⚡ Bot is running smoothly!`;
 
-    const msg =
-`⏱️𝐑𝐮𝐧𝐧𝐢𝐧𝐠 𝐭𝐢𝐦𝐞 » ${runtime} » ☺️👌`;
+ return message.reply(msg);
 
-    return message.reply(msg);
-  }
+ } catch (error) {
+ return message.reply(
+ `❌ | Runtime দেখাতে সমস্যা হয়েছে!\n\n${error.message}`
+ );
+ }
+ }
 };
