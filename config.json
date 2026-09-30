@@ -58,7 +58,7 @@
     "whiteListIds": [],
     "notes": "if you enable this feature, only the ids in the whiteListIds section can use the bot"
   },
-  "nickNameBot": "𝐒𝐀𝐀𝐍 𝐄𝐗𝐇𝐀𝐔𝐒𝐓𝐄𝐃",
+  "nickNameBot": "__SIZUKA-MAYA__",
   "prefix": "/",
   "usePrefix": {
     "enable": true,
