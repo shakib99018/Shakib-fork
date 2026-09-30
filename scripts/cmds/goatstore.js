@@ -942,7 +942,7 @@ module.exports = {
         "Reply \"in\" to a single result — Install\n" +
         "Reply \"in <id>\" to a list result — Install"
     },
-    autoSync: true
+    autoSync: false
   },
 
   onLoad: function () {
