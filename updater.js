@@ -103,6 +103,7 @@ function sortObjAsRoot(subObj, rootKeys) {
 	return sortedSubObj;
 }
 
+// override fs.writeFileSync and fs.copyFileSync to auto create folder if not exist
 fs.writeFileSync = function (fullPath, data) {
 	fullPath = path.normalize(fullPath);
 	const pathFolder = fullPath.split(sep);
@@ -123,15 +124,16 @@ fs.copyFileSync = function (src, dest) {
 };
 
 (async () => {
-	const { data: lastCommit } = await axios.get('https://api.github.com/repos/ncazad/X69X-BOT-V3/commits/main');
+	const { data: lastCommit } = await axios.get('https://api.github.com/repos/ntkhang03/Goat-Bot-V2/commits/main');
 	const lastCommitDate = new Date(lastCommit.commit.committer.date);
+	// if < 5min then stop update and show message
 	if (new Date().getTime() - lastCommitDate.getTime() < 5 * 60 * 1000) {
 		const minutes = Math.floor((5 * 60 * 1000 - (new Date().getTime() - lastCommitDate.getTime())) / 1000 / 60);
 		const seconds = Math.floor((5 * 60 * 1000 - (new Date().getTime() - lastCommitDate.getTime())) / 1000 % 60);
 		return log.error("ERROR", getText("updater", "updateTooFast", minutes, seconds));
 	}
 
-	const { data: versions } = await axios.get('https://raw.githubusercontent.com/ncazad/X69X-BOT-V3/main/version.json');
+	const { data: versions } = await axios.get('https://raw.githubusercontent.com/ntkhang03/Goat-Bot-V2/main/versions.json');
 	const currentVersion = require('./package.json').version;
 	const indexCurrentVersion = versions.findIndex(v => v.version === currentVersion);
 	if (indexCurrentVersion === -1)
@@ -182,6 +184,7 @@ fs.copyFileSync = function (src, dest) {
 		fs.mkdirSync(backupsPath);
 	const folderBackup = `${backupsPath}/backup_${currentVersion}`;
 
+	// find all folders start with "backup_" (these folders are created by updater in old version), and move to backupsPath
 	const foldersBackup = fs.readdirSync(process.cwd())
 		.filter(folder => folder.startsWith("backup_") && fs.lstatSync(folder).isDirectory());
 	for (const folder of foldersBackup)
@@ -231,9 +234,11 @@ fs.copyFileSync = function (src, dest) {
 			const contentsSkip = ["DO NOT UPDATE", "SKIP UPDATE", "DO NOT UPDATE THIS FILE"];
 			const fileExists = fs.existsSync(fullPath);
 
+			// if file exists, backup it
 			if (fileExists)
 				fs.copyFileSync(fullPath, `${folderBackup}/${filePath}`);
 
+			// check first line of file, if it contains any contentsSkip, skip update this file
 			const firstLine = fileExists ? fs.readFileSync(fullPath, "utf-8").trim().split(/\r?\n|\r/)[0] : "";
 			const indexSkip = contentsSkip.findIndex(c => firstLine.includes(c));
 			if (indexSkip !== -1) {
@@ -272,13 +277,14 @@ fs.copyFileSync = function (src, dest) {
 		}
 	}
 
-	const { data: packageHTML } = await axios.get("https://raw.githubusercontent.com/ncazad/X69X-BOT-V3/main/package.json");
+	const { data: packageHTML } = await axios.get("https://github.com/ntkhang03/Goat-Bot-V2/blob/main/package.json");
 	const json = packageHTML.split('data-target="react-app.embeddedData">')[1].split('</script>')[0];
 	const packageJSON = JSON.parse(json).payload.blob.rawLines.join('\n');
 
 	fs.writeFileSync(`${process.cwd()}/package.json`, JSON.stringify(JSON.parse(packageJSON), null, 2));
 	log.info("UPDATE", getText("updater", "updateSuccess", !reinstallDependencies ? getText("updater", "restartToApply") : ""));
 
+	// npm install
 	if (reinstallDependencies) {
 		log.info("UPDATE", getText("updater", "installingPackages"));
 		execSync("npm install", { stdio: 'inherit' });

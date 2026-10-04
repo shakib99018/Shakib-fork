@@ -44,7 +44,7 @@ function recursiveReadDirAndBackup(pathFileOrFolder) {
 		process.exit();
 	}
 
-	versionBackup = versionBackup.replace("backup_", "");
+	versionBackup = versionBackup.replace("backup_", ""); // remove backup_ if exists (may be user input backup_1.0.0)
 	versionBackup = `backup_${versionBackup}`;
 
 	const backupFolder = `${process.cwd()}/backups/${versionBackup}`;
@@ -63,3 +63,4 @@ function recursiveReadDirAndBackup(pathFileOrFolder) {
 
 	log.info("SUCCESS", `Restore backup ${versionBackup} success`);
 })();
+
