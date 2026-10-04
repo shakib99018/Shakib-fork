@@ -1,3 +1,4 @@
+
 const isHexColor = color => color?.match?.(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/);
 const colorFunctions = {
 	bold: text => `\x1b[1m${text}\x1b[0m`,
@@ -69,6 +70,7 @@ const colorFunctions = {
 		}
 	}
 };
+
 
 const colors = {};
 colors.bold = {};

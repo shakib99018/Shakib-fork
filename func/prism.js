@@ -1,3 +1,5 @@
+
+
 const styles = {
 	cdata: "color:#8292a2",
 	comment: "color:#8292a2",
@@ -36,16 +38,21 @@ const styles = {
 };
 
 function LinkedList() {
+	/** @type {LinkedListNode<T>} */
 	const head = { value: null, prev: null, next: null };
+	/** @type {LinkedListNode<T>} */
 	const tail = { value: null, prev: head, next: null };
 	head.next = tail;
 
+	/** @type {LinkedListNode<T>} */
 	this.head = head;
+	/** @type {LinkedListNode<T>} */
 	this.tail = tail;
 	this.length = 0;
 }
 
 function addAfter(list, node, value) {
+	// assumes that node != list.tail && values.length >= 0
 	const next = node.next;
 
 	const newNode = { value: value, prev: node, next: next };
@@ -60,6 +67,7 @@ function matchPattern(pattern, pos, text, lookbehind) {
 	pattern.lastIndex = pos;
 	const match = pattern.exec(text);
 	if (match && lookbehind && match[1]) {
+		// change the match to remove the text matched by the Prism lookbehind group
 		const lookbehindLength = match[1].length;
 		match.index += lookbehindLength;
 		match[0] = match[0].slice(lookbehindLength);
@@ -108,13 +116,15 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 			const alias = patternObj.alias;
 
 			if (greedy && !patternObj.pattern.global) {
+				// Without the global flag, lastIndex won't work
 				const flags = patternObj.pattern.toString().match(/[imsuy]*$/)[0];
 				patternObj.pattern = RegExp(patternObj.pattern.source, flags + 'g');
 			}
 
+			/** @type {RegExp} */
 			const pattern = patternObj.pattern || patternObj;
 
-			for (
+			for ( // iterate the token list and keep track of the current token/string position
 				let currentNode = startNode.next, pos = startPos;
 				currentNode !== tokenList.tail;
 				pos += currentNode.value.length, currentNode = currentNode.next
@@ -127,6 +137,7 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 				let str = currentNode.value;
 
 				if (tokenList.length > text.length) {
+					// Something went terribly wrong, ABORT, ABORT!
 					return;
 				}
 
@@ -134,7 +145,7 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 					continue;
 				}
 
-				let removeCount = 1;
+				let removeCount = 1; // this is the to parameter of removeBetween
 				var match;
 
 				if (greedy) {
@@ -147,18 +158,22 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 					const to = match.index + match[0].length;
 					let p = pos;
 
+					// find the node that contains the match
 					p += currentNode.value.length;
 					while (from >= p) {
 						currentNode = currentNode.next;
 						p += currentNode.value.length;
 					}
+					// adjust pos (and p)
 					p -= currentNode.value.length;
 					pos = p;
 
+					// the current node is a Token, then the match starts inside another Token, which is invalid
 					if (currentNode.value instanceof Token) {
 						continue;
 					}
 
+					// find the last node which is affected by this match
 					for (
 						let k = currentNode;
 						k !== tokenList.tail && (p < to || typeof k.value === 'string');
@@ -169,6 +184,7 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 					}
 					removeCount--;
 
+					// replace with the new match
 					str = text.slice(pos, p);
 					match.index -= pos;
 				} else {
@@ -178,6 +194,7 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 					}
 				}
 
+				// eslint-disable-next-line no-redeclare
 				var from = match.index;
 				const matchStr = match[0];
 				const before = str.slice(0, from);
@@ -205,12 +222,17 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 				}
 
 				if (removeCount > 1) {
+					// at least one Token object was removed, so we have to do some rematching
+					// this can only happen if the current pattern is greedy
+
+					/** @type {RematchOptions} */
 					const nestedRematch = {
 						cause: token + ',' + j,
 						reach: reach
 					};
 					matchGrammar(text, tokenList, grammar, currentNode.prev, pos, nestedRematch);
 
+					// the reach might have been extended because of the rematching
 					if (rematch && nestedRematch.reach > rematch.reach) {
 						rematch.reach = nestedRematch.reach;
 					}
@@ -220,12 +242,39 @@ function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
 	}
 }
 
+
 function Token(type, content, alias, matchedStr) {
+	/**
+	 * The type of the token.
+	 *
+	 * This is usually the key of a pattern in a {@link Grammar}.
+	 *
+	 * @type {string}
+	 * @see GrammarToken
+	 * @public
+	 */
 	this.type = type;
+	/**
+	 * The strings or tokens contained by this token.
+	 *
+	 * This will be a token stream if the pattern matched also defined an `inside` grammar.
+	 *
+	 * @type {string | TokenStream}
+	 * @public
+	 */
 	this.content = content;
+	/**
+	 * The alias(es) of the token.
+	 *
+	 * @type {string|string[]}
+	 * @see GrammarToken
+	 * @public
+	 */
 	this.alias = alias;
+	// Copy of the full string this token was created from
 	this.length = (matchedStr || '').length | 0;
 }
+
 
 Token.stringify = function stringify(o, language, options = {}) {
 	const stylesCss = options.styles || styles;
