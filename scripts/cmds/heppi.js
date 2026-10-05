@@ -1,75 +1,74 @@
+```js
 const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 
 module.exports = {
- config: {
- name: "heppi",
- aliases: ["shakib", "othorevideo"],
- version: "1.0.0",
- author: "SHAKIB",
- countDown: 5,
- role: 0,
- description: { en: "othore video" },
- category: "fun",
- guide: { en: "{pn} othore" }
- },
+  config: {
+    name: "heppi",
+    aliases: ["shakib", "othorevideo"],
+    version: "1.0.0",
+    author: "SHAKIB",
+    countDown: 5,
+    role: 0,
+    description: { en: "othore video" },
+    category: "fun",
+    guide: { en: "{pn} heppi" }
+  },
+  onStart: async function ({ api, event, message }) {
+    const { messageID, threadID } = event;
+    const CACHE_DIR = path.join(__dirname, "cache");
 
- onStart: async function ({ api, event, message }) {
- const { messageID, threadID } = event;
- const CACHE_DIR = path.join(__dirname, "cache");
+    const links = [
+      "https://h.uguu.se/DXYZRaaV.mp4",
+      "https://d.uguu.se/NZKYgnGk.mp4"
+    ];
 
- const links = [
- "https://h.uguu.se/gAPVzsdS.mp4"
- ];
+    api.setMessageReaction("⏰", messageID, () => {}, true);
 
- api.setMessageReaction("⏰", messageID, () => {}, true);
+    try {
+      if (!fs.existsSync(CACHE_DIR)) {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+      }
 
- try {
- if (!fs.existsSync(CACHE_DIR)) {
- fs.mkdirSync(CACHE_DIR, { recursive: true });
- }
+      const videoUrl = links[Math.floor(Math.random() * links.length)];
+      const filePath = path.join(CACHE_DIR, `heppi_${Date.now()}.mp4`);
 
- const videoUrl = links[Math.floor(Math.random() * links.length)];
- const filePath = path.join(CACHE_DIR, `othore_${Date.now()}.mp4`);
+      const response = await axios({
+        method: "GET",
+        url: videoUrl,
+        responseType: "stream",
+        timeout: 120000,
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
 
- const response = await axios({
- method: "GET",
- url: videoUrl,
- responseType: "stream",
- timeout: 120000,
- headers: {
- "User-Agent": "Mozilla/5.0"
- }
- });
+      const writer = fs.createWriteStream(filePath);
+      response.data.pipe(writer);
 
- const writer = fs.createWriteStream(filePath);
- response.data.pipe(writer);
+      await new Promise((resolve, reject) => {
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+      });
 
- await new Promise((resolve, reject) => {
- writer.on("finish", resolve);
- writer.on("error", reject);
- });
+      api.setMessageReaction("✅", messageID, () => {}, true);
 
- api.setMessageReaction("✅", messageID, () => {}, true);
+      await api.sendMessage(
+        {
+          body: "এই নে আমার কাশ দেখ 😁👍",
+          attachment: fs.createReadStream(filePath)
+        },
+        threadID,
+        () => {
+          try {
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          } catch {}
+        }
+      );
 
- await api.sendMessage(
- {
- body: "এই নে আমার কাশ দেখ 😁👍",
- attachment: fs.createReadStream(filePath)
- },
- threadID,
- () => {
- try {
- if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
- } catch {}
- }
- );
-
- } catch (e) {
- console.log("othore error:", e.message);
- api.setMessageReaction("❌", messageID, () => {}, true);
- return message.reply("❌ ভিডিও পাঠানো যায়নি।");
- }
- }
+    } catch (e) {
+      console.log("heppi error:", e.message);
+      api.setMessageReaction("❌", messageID, () => {}, true);
+      return message.reply("❌ ভিডিও পাঠানো যায়নি।");
+    }
+  }
 };
