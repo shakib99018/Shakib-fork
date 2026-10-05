@@ -22,7 +22,9 @@ module.exports = {
       "https://files.catbox.moe/ohup25.mp4",
       "https://files.catbox.moe/k290b8.mp4",
       "https://files.catbox.moe/5y0031.mp4",
-      "https://files.catbox.moe/farczb.mp4"
+      "https://files.catbox.moe/farczb.mp4",
+      "https://files.catbox.moe/ptr1bv.mp4",
+      "https://files.catbox.moe/ake7bo.mp4"
     ];
 
     const filePath = path.join(cacheDir, `heppi_${Date.now()}.mp4`);
@@ -37,7 +39,7 @@ module.exports = {
       });
       fs.writeFileSync(filePath, Buffer.from(res.data));
       await api.sendMessage({
-        body: "এই নে 😁",
+        body: "এই নে আমার কাশ কে দেখ 😁",
         attachment: fs.createReadStream(filePath)
       }, event.threadID, () => {
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
