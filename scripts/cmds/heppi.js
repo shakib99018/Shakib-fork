@@ -20,7 +20,9 @@ module.exports = {
     const links = [
       "https://files.catbox.moe/ba8wa5.mp4",
       "https://files.catbox.moe/ohup25.mp4",
-      "https://files.catbox.moe/k290b8.mp4"
+      "https://files.catbox.moe/k290b8.mp4",
+      "https://files.catbox.moe/5y0031.mp4",
+      "https://files.catbox.moe/farczb.mp4"
     ];
 
     const filePath = path.join(cacheDir, `heppi_${Date.now()}.mp4`);
