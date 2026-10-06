@@ -63,8 +63,8 @@ function extractCommandName(code) {
 module.exports = {
   config: {
     name: "install",
-    version: "1.0.0",
-    author: "𝐌𝐚𝐑𝐮𝐅",
+    version: "3.0",
+    author: "Rx Abdullah",
     countDown: 3,
     role: 2,
     hasPrefix: false,
@@ -84,7 +84,8 @@ module.exports = {
       if (url) {
         rawCode = await fetchCodeFromUrl(url);
         if (!rawCode) return message.reply(
-          "❌ 𝐅𝐚𝐢𝐥𝐞𝐝 𝐭𝐨 𝐟𝐞𝐭𝐜𝐡 𝐜𝐨𝐝𝐞 𝐟𝐫𝐨𝐦 𝐔𝐑𝐋."
+          "✖ Failed to fetch code from URL.\n" +
+          "Please check the link and try again."
         );
       } else {
         rawCode = replyText;
@@ -96,7 +97,8 @@ module.exports = {
     else if (args[0] && isURL(args[0])) {
       rawCode = await fetchCodeFromUrl(args[0]);
       if (!rawCode) return message.reply(
-        "❌ 𝐈𝐧𝐯𝐚𝐥𝐢𝐝 𝐨𝐫 𝐮𝐧𝐫𝐞𝐚𝐜𝐡𝐚𝐛𝐥𝐞 𝐔𝐑𝐋."
+        "✖ Invalid or unreachable URL.\n" +
+        "Make sure the link is accessible and try again."
       );
 
       fileName = extractCommandName(rawCode);
@@ -109,23 +111,25 @@ module.exports = {
 
     if (!rawCode)
       return message.reply(
-        "⚠️ 𝐍𝐨 𝐜𝐨𝐝𝐞 𝐩𝐫𝐨𝐯𝐢𝐝𝐞𝐝.\n\n" +
-        "𝐑𝐞𝐩𝐥𝐲 𝐭𝐨 𝐜𝐨𝐝𝐞/𝐔𝐑𝐋, 𝐮𝐬𝐞 𝐚 𝐔𝐑𝐋, 𝐨𝐫:\n" +
-        "𝐢𝐧𝐬𝐭𝐚𝐥𝐥 <𝐧𝐚𝐦𝐞.𝐣𝐬> <𝐜𝐨𝐝𝐞>"
+        "⚠ No code provided.\n\n" +
+        "Usage:\n" +
+        "• Reply to a message containing code or URL\n" +
+        "• Provide a raw URL directly\n" +
+        "• install <name.js> <code>"
       );
 
     if (!fileName)
       return message.reply(
-        "❌ 𝐂𝐨𝐮𝐥𝐝 𝐧𝐨𝐭 𝐝𝐞𝐭𝐞𝐜𝐭 𝐜𝐨𝐦𝐦𝐚𝐧𝐝 𝐧𝐚𝐦𝐞.\n" +
-        "𝐌𝐚𝐤𝐞 𝐬𝐮𝐫𝐞 𝐭𝐡𝐞 𝐜𝐨𝐝𝐞 𝐡𝐚𝐬 𝐚 𝐯𝐚𝐥𝐢𝐝 𝐧𝐚𝐦𝐞 𝐟𝐢𝐞𝐥𝐝."
+        "✖ Could not detect command name.\n" +
+        "Make sure the code has a valid name field."
       );
 
     const filePath = path.join(process.cwd(), "scripts", "cmds", fileName);
 
     if (fs.existsSync(filePath)) {
       return message.reply(
-        `⚠️ ${fileName} 𝐚𝐥𝐫𝐞𝐚𝐝𝐲 𝐞𝐱𝐢𝐬𝐭𝐬.\n\n` +
-        "𝐑𝐞𝐚𝐜𝐭 𝐭𝐨 𝐭𝐡𝐢𝐬 𝐦𝐞𝐬𝐬𝐚𝐠𝐞 𝐭𝐨 𝐨𝐯𝐞𝐫𝐰𝐫𝐢𝐭𝐞 𝐢𝐭.",
+        `⚠ ${fileName} already exists.\n\n` +
+        "React to this message to overwrite and reinstall.",
         (err, info) => {
           global.GoatBot.onReaction.set(info.messageID, {
             commandName: "install",
@@ -148,13 +152,13 @@ module.exports = {
 
     if (load.status === "success") {
       return message.reply(
-        `✅ 𝐈𝐧𝐬𝐭𝐚𝐥𝐥𝐞𝐝: ${fileName}\n` +
-        `📌 𝐒𝐭𝐚𝐭𝐮𝐬: 𝐑𝐞𝐚𝐝𝐲`
+        `✅ Installed: ${fileName}\n` +
+        `📌 Status: Loaded & Ready`
       );
     } else {
       return message.reply(
-        `❌ 𝐈𝐧𝐬𝐭𝐚𝐥𝐥𝐚𝐭𝐢𝐨𝐧 𝐟𝐚𝐢𝐥𝐞𝐝: ${fileName}\n` +
-        `⚠️ ${load.error?.message || "𝐔𝐧𝐤𝐧𝐨𝐰𝐧 𝐞𝐫𝐫𝐨𝐫"}`
+        `✖ Installation failed: ${fileName}\n` +
+        `⚠ Error: ${load.error?.message || "Unknown error"}`
       );
     }
   },
@@ -179,13 +183,13 @@ module.exports = {
 
     if (load.status === "success") {
       message.reply(
-        `✅ 𝐎𝐯𝐞𝐫𝐰𝐫𝐢𝐭𝐭𝐞𝐧: ${fileName}\n` +
-        `📌 𝐒𝐭𝐚𝐭𝐮𝐬: 𝐑𝐞𝐚𝐝𝐲`
+        `✅ Overwritten & Reloaded: ${fileName}\n` +
+        `📌 Status: Loaded & Ready`
       );
     } else {
       message.reply(
-        `❌ 𝐎𝐯𝐞𝐫𝐰𝐫𝐢𝐭𝐞 𝐟𝐚𝐢𝐥𝐞𝐝: ${fileName}\n` +
-        `⚠️ ${load.error?.message || "𝐔𝐧𝐤𝐧𝐨𝐰𝐧 𝐞𝐫𝐫𝐨𝐫"}`
+        `✖ Overwrite failed: ${fileName}\n` +
+        `⚠ Error: ${load.error?.message || "Unknown error"}`
       );
     }
   }
