@@ -1,345 +1,188 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 const FormData = require("form-data");
+const path = require("path");
+
+const CATBOX_USERHASH = "7a49365abd762f85de0480728";
+const MAX_FILES = 10;
 
 module.exports = {
-  config: {
-    name: "catbox",
-    version: "4.0.0",
-    author: "Zihad",
-    role: 0,
-    shortDescription: "Universal file uploader",
-    longDescription: "Upload replied files with automatic fallback.",
-    category: "media",
-    guide: "{pn} - Reply to a file",
-    cooldowns: 5
-  },
+	config: {
+		name: "catbox",
+		version: "1.1.2",
+		author: "EryXenX",
+		countDown: 10,
+		role: 0,
+		description: {
+			en: "Upload files to Catbox and get direct links"
+		},
+		category: "media",
+		guide: {
+			en: "   {pn}  (reply to image, video, audio or file)"
+				+ "\n   {pn} <url> [url2 ...]  (upload from link)"
+				+ "\n   {pn} 1h|12h|24h|72h  (temporary upload, reply to a file)"
+		}
+	},
 
-  onStart: async function ({ api, event }) {
-    const tid = event.threadID;
-    const mid = event.messageID;
-    const reply = event.messageReply;
+	onStart: async function ({ api, args, event, message }) {
+		const list = args.slice();
+		let tempTime = null;
 
-    if (!reply || !reply.attachments || !reply.attachments.length) {
-      return api.sendMessage(
-        "❌ | Reply to an image, video, audio or file.",
-        tid,
-        mid
-      );
-    }
+		if (list.length && TEMP_TIMES.includes(String(list[0]).toLowerCase()))
+			tempTime = String(list.shift()).toLowerCase();
 
-    const attachment = reply.attachments[0];
-    const fileURL = attachment.url;
+		const sources = [];
 
-    if (!fileURL) {
-      return api.sendMessage(
-        "❌ | Attachment URL not found.",
-        tid,
-        mid
-      );
-    }
+		for (const item of list) {
+			if (isLink(item)) sources.push({ url: item.trim(), name: nameFromUrl(item, sources.length) });
+		}
 
-    const cacheDir = path.join(__dirname, "cache");
+		if (!sources.length) {
+			const attachments = (event.messageReply && event.messageReply.attachments) || [];
+			attachments.forEach((att, i) => {
+				if (att && att.url) sources.push({ url: att.url, name: guessName(att, i) });
+			});
+		}
 
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-    }
+		if (!sources.length)
+			return message.reply(
+				"Reply to an image, video, audio or file, or send a direct link.\n" +
+				"Usage: /catbox | /catbox <url> | /catbox 1h|12h|24h|72h"
+			);
 
-    const originalName =
-      attachment.filename ||
-      "facebook_" + Date.now() + ".tmp";
+		const picked = sources.slice(0, MAX_FILES);
+		const skipped = sources.length - picked.length;
 
-    const ext = path.extname(originalName) || ".tmp";
+		const waiting = await message.reply(`Uploading ${picked.length} file(s)${tempTime ? ` for ${tempTime}` : ""}...`);
+		const waitingID = waiting && waiting.messageID;
 
-    const filePath = path.join(
-      cacheDir,
-      "upload_" + Date.now() + ext
-    );
+		const lines = [];
+		let ok = 0;
 
-    try {
-      await api.sendMessage(
-        "⏳ | Downloading attachment...",
-        tid,
-        mid
-      );
+		for (let i = 0; i < picked.length; i++) {
+			try {
+				const link = await uploadOne(picked[i], tempTime);
+				ok++;
+				lines.push(picked.length > 1 ? `${i + 1}. ${link}` : link);
+			}
+			catch (e) {
+				const reason = String((e && e.message) || "failed").slice(0, 80);
+				lines.push(`${i + 1}. Failed (${reason})`);
+			}
+		}
 
-      const download = await axios.get(fileURL, {
-        responseType: "stream",
-        timeout: 120000,
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        }
-      });
+		let text = lines.join("\n");
+		if (tempTime && ok) text += `\n\nThese links expire in ${tempTime}.`;
+		if (skipped > 0) text += `\n\nSkipped ${skipped} file(s). Max ${MAX_FILES} per command.`;
 
-      const writer = fs.createWriteStream(filePath);
+		if (waitingID) {
+			try {
+				await api.editMessage(text, waitingID);
+				return;
+			}
+			catch (e) {
+				return message.reply(text);
+			}
+		}
 
-      download.data.pipe(writer);
+		return message.reply(text);
+	}
+};
 
-      await new Promise((resolve, reject) => {
-        writer.on("finish", resolve);
-        writer.on("error", reject);
-      });
+const CATBOX_API = "https://catbox.moe/user/api.php";
+const LITTER_API = "https://litterbox.catbox.moe/resources/internals/api.php";
+const TIMEOUT = 120000;
 
-      if (!fs.existsSync(filePath)) {
-        throw new Error("File download failed.");
-      }
+const TEMP_TIMES = ["1h", "12h", "24h", "72h"];
 
-      /*
-       * =====================================================
-       * UPLOADER 1 - UGUU
-       * =====================================================
-       */
+const EXT_BY_TYPE = {
+	photo: ".jpg",
+	animated_image: ".gif",
+	video: ".mp4",
+	audio: ".mp3",
+	sticker: ".png"
+};
 
-      try {
-        await api.sendMessage(
-          "⏳ | Uploading... [1/3]",
-          tid,
-          mid
-        );
+const isLink = text => typeof text === "string" && /^https?:\/\/\S+$/.test(text.trim());
 
-        const form = new FormData();
+const guessName = (attachment, index) => {
+	let name = attachment.filename || "";
+	if (!path.extname(name)) {
+		let ext = "";
+		try {
+			ext = path.extname(new URL(attachment.url).pathname);
+		}
+		catch (e) {
+			ext = "";
+		}
+		if (!ext) ext = EXT_BY_TYPE[attachment.type] || ".bin";
+		name = `${name || `file_${Date.now()}_${index}`}${ext}`;
+	}
+	return name.replace(/[^\w.\-]/g, "_");
+};
 
-        form.append(
-          "files[]",
-          fs.createReadStream(filePath),
-          {
-            filename: originalName
-          }
-        );
+const nameFromUrl = (url, index) => {
+	let base = "";
+	try {
+		base = path.basename(new URL(url).pathname);
+	}
+	catch (e) {
+		base = "";
+	}
+	if (!base || !path.extname(base)) base = `file_${Date.now()}_${index}.bin`;
+	return base.replace(/[^\w.\-]/g, "_");
+};
 
-        const response = await axios.post(
-          "https://uguu.se/upload.php",
-          form,
-          {
-            headers: {
-              ...form.getHeaders(),
-              "User-Agent": "Mozilla/5.0"
-            },
-            timeout: 180000,
-            maxBodyLength: Infinity,
-            maxContentLength: Infinity
-          }
-        );
+const readResult = data => {
+	const text = typeof data === "string" ? data.trim() : "";
+	if (isLink(text)) return text;
+	throw new Error(text || "Empty response from server");
+};
 
-        const data = response.data;
+const uploadByUrl = async url => {
+	const form = new FormData();
+	form.append("reqtype", "urlupload");
+	if (CATBOX_USERHASH) form.append("userhash", CATBOX_USERHASH);
+	form.append("url", url);
+	const res = await axios.post(CATBOX_API, form, {
+		headers: form.getHeaders(),
+		timeout: TIMEOUT,
+		maxBodyLength: Infinity,
+		maxContentLength: Infinity
+	});
+	return readResult(res.data);
+};
 
-        let url = null;
+const uploadBuffer = async (url, filename, tempTime) => {
+	const file = await axios.get(url, {
+		responseType: "arraybuffer",
+		timeout: TIMEOUT,
+		maxContentLength: Infinity
+	});
+	const buffer = Buffer.from(file.data);
 
-        if (data && data.files && data.files[0]) {
-          url =
-            data.files[0].url ||
-            data.files[0].url_short ||
-            null;
-        }
+	const form = new FormData();
+	form.append("reqtype", "fileupload");
+	if (tempTime) form.append("time", tempTime);
+	else if (CATBOX_USERHASH) form.append("userhash", CATBOX_USERHASH);
+	form.append("fileToUpload", buffer, { filename, knownLength: buffer.length });
 
-        if (
-          !url &&
-          typeof data === "string" &&
-          data.startsWith("http")
-        ) {
-          url = data.trim();
-        }
+	const res = await axios.post(tempTime ? LITTER_API : CATBOX_API, form, {
+		headers: form.getHeaders(),
+		timeout: TIMEOUT,
+		maxBodyLength: Infinity,
+		maxContentLength: Infinity
+	});
+	return readResult(res.data);
+};
 
-        if (url) {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-          }
-
-          return api.sendMessage(
-            "✅ | Upload Successful\n\n" +
-            "📁 File: " + originalName + "\n" +
-            "🌐 Host: Uguu\n\n" +
-            "🔗 " + url,
-            tid,
-            mid
-          );
-        }
-
-      } catch (e) {
-        console.log(
-          "Uguu failed:",
-          e.response
-            ? e.response.status
-            : e.message
-        );
-      }
-
-      /*
-       * =====================================================
-       * UPLOADER 2 - 0X0.ST
-       * =====================================================
-       */
-
-      try {
-        await api.sendMessage(
-          "⏳ | Trying backup uploader... [2/3]",
-          tid,
-          mid
-        );
-
-        const form = new FormData();
-
-        form.append(
-          "file",
-          fs.createReadStream(filePath),
-          {
-            filename: originalName
-          }
-        );
-
-        const response = await axios.post(
-          "https://0x0.st",
-          form,
-          {
-            headers: {
-              ...form.getHeaders(),
-              "User-Agent": "Mozilla/5.0"
-            },
-            timeout: 180000,
-            maxBodyLength: Infinity,
-            maxContentLength: Infinity
-          }
-        );
-
-        const url = String(
-          response.data || ""
-        ).trim();
-
-        if (url.startsWith("http")) {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-          }
-
-          return api.sendMessage(
-            "✅ | Upload Successful\n\n" +
-            "📁 File: " + originalName + "\n" +
-            "🌐 Host: 0x0.st\n\n" +
-            "🔗 " + url,
-            tid,
-            mid
-          );
-        }
-
-      } catch (e) {
-        console.log(
-          "0x0.st failed:",
-          e.response
-            ? e.response.status
-            : e.message
-        );
-      }
-
-      /*
-       * =====================================================
-       * UPLOADER 3 - BEACON
-       * =====================================================
-       */
-
-      try {
-        await api.sendMessage(
-          "⏳ | Trying final uploader... [3/3]",
-          tid,
-          mid
-        );
-
-        const form = new FormData();
-
-        form.append(
-          "file",
-          fs.createReadStream(filePath),
-          {
-            filename: originalName
-          }
-        );
-
-        const response = await axios.post(
-          "https://beacon.host/v1/upload",
-          form,
-          {
-            headers: {
-              ...form.getHeaders(),
-              "User-Agent": "Mozilla/5.0"
-            },
-            timeout: 180000,
-            maxBodyLength: Infinity,
-            maxContentLength: Infinity
-          }
-        );
-
-        let url = null;
-
-        if (response.data) {
-          if (typeof response.data === "string") {
-            url = response.data.trim();
-          } else {
-            url =
-              response.data.url ||
-              response.data.download_url ||
-              null;
-          }
-        }
-
-        if (url && url.startsWith("http")) {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-          }
-
-          return api.sendMessage(
-            "✅ | Upload Successful\n\n" +
-            "📁 File: " + originalName + "\n" +
-            "🌐 Host: Beacon\n\n" +
-            "🔗 " + url,
-            tid,
-            mid
-          );
-        }
-
-      } catch (e) {
-        console.log(
-          "Beacon failed:",
-          e.response
-            ? e.response.status
-            : e.message
-        );
-      }
-
-      /*
-       * =====================================================
-       * ALL FAILED
-       * =====================================================
-       */
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      return api.sendMessage(
-        "❌ | All Upload Servers Failed\n\n" +
-        "› Uguu ❌\n" +
-        "› 0x0.st ❌\n" +
-        "› Beacon ❌\n\n" +
-        "⚠️ The upload services may be temporarily unavailable.",
-        tid,
-        mid
-      );
-
-    } catch (error) {
-      console.error("Uploader Error:", error);
-
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (e) {}
-      }
-
-      return api.sendMessage(
-        "❌ | Upload Failed\n\n" +
-        "› " +
-        (error.message || "Unknown error"),
-        tid,
-        mid
-      );
-    }
-  }
+const uploadOne = async (source, tempTime) => {
+	if (!tempTime) {
+		try {
+			return await uploadByUrl(source.url);
+		}
+		catch (e) {
+			return await uploadBuffer(source.url, source.name, null);
+		}
+	}
+	return await uploadBuffer(source.url, source.name, tempTime);
 };
