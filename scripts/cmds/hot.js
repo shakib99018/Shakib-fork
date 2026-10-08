@@ -22,7 +22,13 @@ module.exports = {
       "https://n.uguu.se/WFnXenfp.mp4",
       "https://files.catbox.moe/0b2tux.mp4",
       "https://files.catbox.moe/84iwf4.mp4",
-      "https://files.catbox.moe/18ib1h.mp4"
+      "https://files.catbox.moe/18ib1h.mp4",
+      "https://files.catbox.moe/581295.mp4",
+      "https://files.catbox.moe/gq471j.mp4",
+      "https://files.catbox.moe/hmxwkf.mp4",
+      "https://files.catbox.moe/gu9542.mp4",
+      "https://files.catbox.moe/g32gwj.mp4",
+      "https://files.catbox.moe/leakzl.mp4"
     ];
 
     api.setMessageReaction("⏰", messageID, () => {}, true);
