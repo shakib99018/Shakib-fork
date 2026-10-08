@@ -19,7 +19,10 @@ module.exports = {
     const CACHE_DIR = path.join(__dirname, "cache");
 
     const links = [
-      "https://n.uguu.se/WFnXenfp.mp4"
+      "https://n.uguu.se/WFnXenfp.mp4",
+      "https://files.catbox.moe/0b2tux.mp4",
+      "https://files.catbox.moe/84iwf4.mp4",
+      "https://files.catbox.moe/18ib1h.mp4"
     ];
 
     api.setMessageReaction("⏰", messageID, () => {}, true);
