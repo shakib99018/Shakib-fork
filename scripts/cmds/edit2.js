@@ -1,94 +1,71 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
-
-const API_BASE = "https://eryxenx.agi.bd/api/nanobanana2";
 
 module.exports = {
   config: {
     name: "edit2",
-    aliases: ["nanobanana"],
-    version: "2.0.0",
-    author: "EryXenX",
-    countDown: 30,
+    aliases: ["e"],
+    version: "0.0.7",
+    author: "𝐌𝙴ʜ𝐄ᴅ𝐈",
+    countDown: 25, // Updated to 25 seconds
     role: 0,
-    shortDescription: "Edit or generate image using Nano Banana 2",
-    category: "AI",
-    guide: "{pn} <text> (reply to an image to edit it, or send without reply to generate)"
+    shortDescription: "Edit image",
+    longDescription: "Reply to any image",
+    category: "image",
+    guide: "{pn} [text]"
   },
 
-  onStart: async function ({ api, event, args }) {
-    const { threadID, messageID, messageReply } = event;
-    const prompt = args.join(" ").trim();
+  onStart: async function ({ api, event, args, message, usersData }) {
+    const { senderID, messageReply } = event;
 
-    if (!prompt) {
-      return api.sendMessage("⚠️ Please provide some text for the image.", threadID, messageID);
+    /* ===== VIP & PERMISSION CHECK ===== */
+    const ADMINS = global.GoatBot?.config?.adminBot || [];
+    const isBotAdmin = ADMINS.includes(senderID);
+
+    if (!isBotAdmin) {
+      const userData = await usersData.get(senderID);
+      const vip = userData?.data?.vip;
+
+      if (!vip || !vip.expires || vip.expires < Date.now()) {
+        return api.sendMessage("❌ 𝐕𝐈𝐏 𝐎𝐍𝐋𝐘 𝐂𝐎𝐌𝐌𝐀𝐍𝐃\n" +
+          "• 𝐎𝐧𝐥𝐲 𝐕𝐈𝐏 𝐮𝐬𝐞𝐫𝐬 𝐜𝐚𝐧 𝐮𝐬𝐞 𝐞𝐝𝐢𝐭\n" +
+          "• 𝐓𝐲𝐩𝐞: vip buy", event.threadID, event.messageID);
+      }
     }
 
-    const imgUrl = messageReply?.attachments?.[0]?.url;
+    const react = (emoji) => api.setMessageReaction(emoji, event.messageID, () => {}, true);
 
-    api.setMessageReaction("⏳", messageID, () => {}, true);
-
-    let filePath;
     try {
-      const params = new URLSearchParams();
-      params.set("prompt", prompt);
-      if (imgUrl) params.set("image", imgUrl);
+      const prompt = args.join(" ");
 
-      const res = await axios.get(`${API_BASE}?${params.toString()}`, { timeout: 180000 });
-      const data = res.data;
-      const finalImageURL = data && data.success ? data.imageUrl : null;
-
-      if (!finalImageURL) {
-        const errMsg = (data && (data.error || data.message)) || "Unknown reason";
-        api.setMessageReaction("⚠️", messageID, () => {}, true);
-        return api.sendMessage(`❌ Failed\nReason: ${errMsg}`, threadID, messageID);
+      if (!prompt) {
+        react("⚠️");
+        return api.sendMessage("⚠️ | Please provide text.", event.threadID);
       }
 
-      const cacheDir = path.join(__dirname, "cache");
-      fs.mkdirSync(cacheDir, { recursive: true });
+      const imageUrl = messageReply?.attachments[0]?.url;
 
-      const imageResponse = await axios.get(finalImageURL, {
-        responseType: "arraybuffer",
-        timeout: 60000
-      });
-
-      const contentType = data.contentType || "";
-      const extFromType = contentType.split("/").pop();
-      const ext = (extFromType || finalImageURL.split("?")[0].split(".").pop() || "png").toLowerCase();
-      const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "png";
-      filePath = path.join(cacheDir, `${Date.now()}.${safeExt}`);
-      fs.writeFileSync(filePath, Buffer.from(imageResponse.data));
-
-      const body =
-        `✨━━━ ${String(data.model || "").toUpperCase()} ━━━✨\n\n` +
-        `✅ ${data.message || "Done"}\n\n` +
-        `🎨 Mode: ${data.mode || "N/A"}\n` +
-        `🤖 Model: ${data.model || "N/A"}\n` +
-        `⏱️ Time: ${data.timeTaken || "N/A"}\n` +
-        `👤 Operator: ${data.operator || "N/A"}\n\n` +
-        "━━━━━━━━━━━━━━━━━━━━";
-
-      api.setMessageReaction("✅", messageID, () => {}, true);
-      api.sendMessage(
-        {
-          body,
-          attachment: fs.createReadStream(filePath)
-        },
-        threadID,
-        () => {
-          try { fs.unlinkSync(filePath); } catch (_) {}
-        },
-        messageID
-      );
-    } catch (err) {
-      console.error("EDIT2 Error:", err?.response?.data || err.message);
-      if (filePath) {
-        try { fs.unlinkSync(filePath); } catch (_) {}
+      if (!imageUrl) {
+        react("🖼️");
+        return api.sendMessage("🖼️ | Please reply to an image.", event.threadID);
       }
-      api.setMessageReaction("❌", messageID, () => {}, true);
-      const reason = err?.response?.data?.error || "unexpected error";
-      api.sendMessage(`❌ Failed\nReason: ${reason}`, threadID, messageID);
+
+      react("⏳");
+
+      const apiUrl = `https://azadx69x.is-a.dev/api/editor?url=${encodeURIComponent(imageUrl)}&prompt=${encodeURIComponent(prompt)}`;
+
+      const response = await axios.get(apiUrl, { responseType: "stream" });
+
+      react("✅");
+
+      api.sendMessage({
+        body: `🖌 𝐈𝐦𝐚𝐠𝐞 𝐞𝐝𝐢𝐭𝐞𝐝 𝐬𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥𝐥𝐲.\n𝐏𝐫𝐨𝐦𝐩𝐭: ${prompt}`,
+        attachment: response.data
+      }, event.threadID, messageReply?.messageID);
+
+    } catch (error) {
+      console.error(error);
+      react("❌");
+      api.sendMessage("❌ | Failed to process image.", event.threadID);
     }
   }
 };
