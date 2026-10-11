@@ -36,7 +36,7 @@
   ],
   "reactUnsend": {
     "enable": true,
-    "onlyAdmin": true,
+    "onlyAdmin": false,
     "emojis": [
       "😡",
       "😠"
