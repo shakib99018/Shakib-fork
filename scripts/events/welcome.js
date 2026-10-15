@@ -10,7 +10,7 @@ const axios = require("axios");
 module.exports = {
   config: {
     name: "welcome",
-    version: "9.0",
+    version: "9.2",
     author: "Sakib",
     category: "events"
   },
@@ -212,21 +212,16 @@ function fitText(ctx, text, maxWidth, startSize) {
 
   while (size > 15) {
     ctx.font = `bold ${size}px Arial`;
-
     if (ctx.measureText(text).width <= maxWidth) break;
     size--;
   }
 
   ctx.font = `bold ${size}px Arial`;
 
-  while (
-    text.length > 2 &&
-    ctx.measureText(text).width > maxWidth
-  ) {
-    text = text.slice(0, -1);
-  }
-
-  if (text.length < String(arguments[1] || "").length) {
+  if (ctx.measureText(text).width > maxWidth) {
+    while (text.length > 0 && ctx.measureText(text + "...").width > maxWidth) {
+      text = text.slice(0, -1);
+    }
     text += "...";
   }
 
@@ -249,64 +244,38 @@ async function createWelcomeCard({
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
-  const [userImg, inviterImg, groupImg] = await Promise.all([
+  // Load custom background image along with avatars and group icon
+  const [bgImg, userImg, inviterImg, groupImg] = await Promise.all([
+    loadImage(path.join(__dirname, "1000094934.png")).catch(() => null),[span_1](start_span)[span_1](end_span)
     getProfile(userID, api),
     getProfile(inviterID, api),
     getGroupImage(threadID, api)
   ]);
 
-  // Cosmic background
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#080817");
-  bg.addColorStop(0.5, "#15133a");
-  bg.addColorStop(1, "#09091b");
-
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  // Neon radial glow
-  for (const glow of [
-    { x: 180, y: 120, r: 350, c: "90,50,255" },
-    { x: 950, y: 300, r: 400, c: "0,190,255" },
-    { x: 700, y: 650, r: 280, c: "220,40,200" }
-  ]) {
-    const g = ctx.createRadialGradient(
-      glow.x, glow.y, 0,
-      glow.x, glow.y, glow.r
-    );
-
-    g.addColorStop(0, `rgba(${glow.c},0.23)`);
-    g.addColorStop(1, `rgba(${glow.c},0)`);
-
-    ctx.fillStyle = g;
+  // Draw custom background image or fallback gradient if not found
+  if (bgImg) {
+    ctx.drawImage(bgImg, 0, 0, W, H);
+  } else {
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#080817");
+    bg.addColorStop(1, "#09091b");
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
-  }
-
-  // Stars
-  for (let i = 0; i < 180; i++) {
-    const x = (i * 137.5) % W;
-    const y = (i * 79.3) % H;
-    const r = (i % 3) * 0.45 + 0.5;
-
-    ctx.fillStyle = `rgba(255,255,255,${0.15 + (i % 6) / 10})`;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   // Main glass card
   ctx.save();
-  ctx.shadowColor = "rgba(60,140,255,0.35)";
+  ctx.shadowColor = "rgba(180,50,255,0.4)";
   ctx.shadowBlur = 35;
 
   roundedRect(ctx, 24, 24, W - 48, H - 48, 30);
 
-  ctx.fillStyle = "rgba(12,13,38,0.82)";
+  ctx.fillStyle = "rgba(12, 10, 30, 0.75)";
   ctx.fill();
 
   ctx.restore();
 
-  ctx.strokeStyle = "rgba(140,150,255,0.65)";
+  ctx.strokeStyle = "rgba(200, 100, 255, 0.5)";
   ctx.lineWidth = 2;
   roundedRect(ctx, 24, 24, W - 48, H - 48, 30);
   ctx.stroke();
@@ -314,7 +283,7 @@ async function createWelcomeCard({
   // Top label
   ctx.textAlign = "center";
   ctx.font = "bold 18px Arial";
-  ctx.fillStyle = "#78e8ff";
+  ctx.fillStyle = "#e878ff";
   ctx.fillText("✦  A NEW STAR HAS ARRIVED  ✦", W / 2, 70);
 
   // Main welcome title
@@ -323,7 +292,7 @@ async function createWelcomeCard({
   const titleGradient = ctx.createLinearGradient(200, 0, 1000, 0);
   titleGradient.addColorStop(0, "#d3b7ff");
   titleGradient.addColorStop(0.5, "#ffffff");
-  titleGradient.addColorStop(1, "#79eaff");
+  titleGradient.addColorStop(1, "#e879ff");
 
   ctx.fillStyle = titleGradient;
   ctx.fillText("WELCOME TO THE COSMOS", W / 2, 132);
@@ -337,9 +306,9 @@ async function createWelcomeCard({
   // Avatar rings
   for (const x of [userX, inviterX]) {
     ctx.save();
-    ctx.shadowColor = "#7d72ff";
+    ctx.shadowColor = "#d472ff";
     ctx.shadowBlur = 24;
-    ctx.strokeStyle = "#9b8cff";
+    ctx.strokeStyle = "#e88cff";
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(x, avatarY, avatarR + 8, 0, Math.PI * 2);
@@ -352,8 +321,8 @@ async function createWelcomeCard({
 
   // Connecting line
   const line = ctx.createLinearGradient(userX, 0, inviterX, 0);
-  line.addColorStop(0, "#a07bff");
-  line.addColorStop(0.5, "#70eaff");
+  line.addColorStop(0, "#d07bff");
+  line.addColorStop(0.5, "#e870ff");
   line.addColorStop(1, "#ff8bdd");
 
   ctx.strokeStyle = line;
@@ -377,7 +346,7 @@ async function createWelcomeCard({
   ctx.fillText(member.text, userX, 390);
 
   ctx.font = "bold 15px Arial";
-  ctx.fillStyle = "#a7a0ff";
+  ctx.fillStyle = "#e7a0ff";
   ctx.fillText("NEW MEMBER", userX, 420);
 
   // Inviter name
@@ -387,7 +356,7 @@ async function createWelcomeCard({
   ctx.fillText(inviter.text, inviterX, 390);
 
   ctx.font = "bold 15px Arial";
-  ctx.fillStyle = "#79eaff";
+  ctx.fillStyle = "#e879ff";
   ctx.fillText("INVITED BY", inviterX, 420);
 
   // Member badge
@@ -399,15 +368,15 @@ async function createWelcomeCard({
   const badgeY = 448;
 
   roundedRect(ctx, badgeX, badgeY, badgeWidth, 48, 24);
-  ctx.fillStyle = "rgba(105,110,255,0.20)";
+  ctx.fillStyle = "rgba(185,110,255,0.20)";
   ctx.fill();
 
-  ctx.strokeStyle = "#8e91ff";
+  ctx.strokeStyle = "#d491ff";
   ctx.lineWidth = 2;
   roundedRect(ctx, badgeX, badgeY, badgeWidth, 48, 24);
   ctx.stroke();
 
-  ctx.fillStyle = "#e7e6ff";
+  ctx.fillStyle = "#f5e6ff";
   ctx.fillText(badgeText, W / 2, badgeY + 31);
 
   // Group panel
@@ -420,7 +389,7 @@ async function createWelcomeCard({
   ctx.fillStyle = "rgba(255,255,255,0.055)";
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(140,160,255,0.35)";
+  ctx.strokeStyle = "rgba(200,160,255,0.35)";
   ctx.lineWidth = 1.5;
   roundedRect(ctx, panelX, panelY, panelW, panelH, 20);
   ctx.stroke();
@@ -433,7 +402,7 @@ async function createWelcomeCard({
     ctx.drawImage(groupImg, 120, 533, 64, 64);
     ctx.restore();
   } else {
-    ctx.fillStyle = "#28254c";
+    ctx.fillStyle = "#38254c";
     roundedRect(ctx, 120, 533, 64, 64, 14);
     ctx.fill();
 
@@ -445,7 +414,7 @@ async function createWelcomeCard({
   // Group name
   ctx.textAlign = "left";
   ctx.font = "bold 14px Arial";
-  ctx.fillStyle = "#81eaff";
+  ctx.fillStyle = "#e87eff";
   ctx.fillText("GROUP DESTINATION", 205, 550);
 
   const group = fitText(ctx, threadName, 580, 26);
@@ -456,7 +425,7 @@ async function createWelcomeCard({
   // Footer branding
   ctx.textAlign = "right";
   ctx.font = "bold 15px Arial";
-  ctx.fillStyle = "#b9b3ff";
+  ctx.fillStyle = "#e3b3ff";
   ctx.fillText("POWERED BY SAKIB", 1070, 642);
 
   const filePath = path.join(
