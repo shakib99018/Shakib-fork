@@ -1,6 +1,49 @@
+// code from goatstore
+// api: https://store.agi.bd
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+module.exports = {
+  config: {
+    name: "goatstore",
+    aliases: ["gs", "cmdstore", "commandstore"],
+    version: "20.0.0",
+    author: "Mirai Team",
+    countDown: 3,
+    role: 2,
+    shortDescription: "GoatBot Store — Search, AutoUpdate, Install, Upload, AutoSync",
+    longDescription: "Browse, install, upload, and autosync GoatBot commands and events from the MiraiStore API. Auto-detects your cmds/events folder naming. The bare-menu shows only the daily-use commands — every subcommand lives here in the guide.",
+    category: "system",
+    guide: {
+      en:
+        "{pn} — Menu / Notifications\n" +
+        "{pn} <id | file name> — Search commands only\n" +
+        "{pn} -a <name> — All files by an author\n" +
+        "{pn} -c <goat|mirai|other|category> — Browse a framework or category\n" +
+        "{pn} -e <name> — Search events\n" +
+        "{pn} -e install <id> — Install as event\n" +
+        "{pn} -e upload <fileName> — Upload an event file\n" +
+        "{pn} n — Today's updates\n" +
+        "{pn} list [page] — Command list\n" +
+        "{pn} list event [page] — Event list\n" +
+        "{pn} install <id> — Install a command\n" +
+        "{pn} like <id> — Like\n" +
+        "{pn} trend — Trending\n" +
+        "{pn} upload <fileName> — Upload a command file\n" +
+        "{pn} sync — Manual sync\n" +
+        "{pn} dirs — Show & re-detect cmds/events locations\n" +
+        "{pn} pr add <uid> — Add premium user (admin, or reply to a msg)\n" +
+        "{pn} pr remove <uid> — Remove premium user (admin)\n" +
+        "{pn} pr upload <cmdname> — Mark a command premium (admin)\n" +
+        "{pn} pr delete <cmdname> — Unmark a command (admin)\n" +
+        "{pn} pr author add|remove <authorname> — Premium by author (admin)\n" +
+        "{pn} pr list — Show premium state (admin)\n" +
+        "Reply \"in\" to a single result — Install\n" +
+        "Reply \"in <id>\" to a list result — Install"
+    },
+    autoSync: false
+  }
+};
 
 const API_URL_JSON = "https://raw.githubusercontent.com/abdullahrx07/X-api/main/MaRiA/baseApiUrl.json";
 const HARD_FALLBACK_BASE = "https://store.agi.bd";
@@ -437,6 +480,59 @@ async function getTrending(limit = 5) {
   return null;
 }
 
+// ── Developer avatar sync ──────────────────────────────────────────────────────
+// A bot that has goatstore.js installed publishes its OWN account profile
+// picture as its developer avatar. GoatBot's FCA API exposes the picture in
+// the getUserInfo() result (thumbSrc / profileUrl / imageSrc, depending on
+// FCA version), so we read it there and POST it to /miraistore/profile. The
+// GET first means a restart with an unchanged avatar doesn't re-send it.
+async function fetchBotAvatar(api) {
+  let botId = null;
+  try { botId = api.getCurrentUserID(); } catch (_) {}
+  if (!botId && global.GoatBot?.botID) botId = global.GoatBot.botID;
+  if (!botId) return null;
+
+  let info = null;
+  try {
+    const res = await api.getUserInfo(botId);
+    info = res && (res[botId] || res[String(botId)]) ? (res[botId] || res[String(botId)]) : res;
+  } catch (_) { return null; }
+  if (!info) return null;
+
+  const url =
+    info.thumbSrc ||
+    info.profileUrl ||
+    info.profilePictureUrl ||
+    info.imageSrc ||
+    info.image ||
+    info.avatar ||
+    (info.profilePicture && (info.profilePicture.uri || info.profilePicture.url)) ||
+    (info.thumbSrcBig) ||
+    null;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+}
+
+async function reportBotAvatar(api, { force = false } = {}) {
+  const author = module.exports.config.author;
+  if (!author) return;
+  try {
+    const avatarUrl = await fetchBotAvatar(api);
+    if (!avatarUrl) return;
+
+    if (!force) {
+      try {
+        const cur = await storeGet(`/miraistore/profile?author=${encodeURIComponent(author)}`);
+        if (cur.data && cur.data.avatarUrl === avatarUrl) return;
+      } catch (_) {}
+    }
+
+    await storePost(`/miraistore/profile`, { author, avatarUrl, clientFp: `avatar:${author}` });
+    console.log(`[goatstore] developer avatar reported for "${author}"`);
+  } catch (err) {
+    console.error("[goatstore] avatar report failed:", err.response?.data?.error || err.message);
+  }
+}
+
 async function runAutoSync() {
   const folders = [
     { dir: getCmdsDir(), kind: "command" },
@@ -446,6 +542,20 @@ async function runAutoSync() {
   if (!folders.length) return;
 
   const cache = loadSyncCache();
+
+  // The store caps rewrites at 2 per bot per rolling minute. Sync at that
+  // pace instead of hammering the API: after two rewrites, pause for the
+  // rest of the minute before continuing. New entries aren't counted here
+  // (the server only charges the rewrite path).
+  let rewritesThisMinute = 0;
+  const paceRewrites = async (isRewrite) => {
+    if (!isRewrite) return;
+    rewritesThisMinute++;
+    if (rewritesThisMinute >= 2) {
+      await new Promise(r => setTimeout(r, 60 * 1000));
+      rewritesThisMinute = 0;
+    }
+  };
 
   for (const { dir, kind } of folders) {
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"));
@@ -477,6 +587,7 @@ async function runAutoSync() {
         } else if (res.data?.updated) {
           console.log(`[goatstore-sync] ${file}: updated existing entry (ID: ${res.data.id}) to v${res.data.version}.`);
           cache[cacheKey] = hash;
+          await paceRewrites(true);
         } else {
           console.log(`[goatstore-sync] ${file}: uploaded as new entry (ID: ${res.data.id}).`);
           cache[cacheKey] = hash;
@@ -542,7 +653,28 @@ function autoloadCommand(filePath) {
   }
 }
 
+// GoatBot dispatches BOTH onChat and onReply for the same "in"/"in <id>"
+// message, so an install could run twice and show two progress messages.
+// This short-lived per-(thread,id) lock makes the second dispatch a no-op;
+// the TTL lets a genuine retry after a failure work again.
+const _installLocks = new Map();
+
 async function doInstall(api, threadID, senderID, id, forceKind = null) {
+  const key = `${threadID}:${id}`;
+  const now = Date.now();
+  const prev = _installLocks.get(key);
+  if (prev && now - prev < 8000) return;
+  _installLocks.set(key, now);
+  try {
+    return await installCommand(api, threadID, senderID, id, forceKind);
+  } finally {
+    setTimeout(() => {
+      if (_installLocks.get(key) === now) _installLocks.delete(key);
+    }, 8000).unref?.();
+  }
+}
+
+async function installCommand(api, threadID, senderID, id, forceKind = null) {
   let cmdData = null;
   try {
     const res = await storeGet(`/miraistore/search?q=${encodeURIComponent(id)}&clientFp=${encodeURIComponent(senderID || "")}`);
@@ -904,52 +1036,20 @@ async function uploadFile(api, threadID, filePath, kind, senderID = null) {
   }
 }
 
-module.exports = {
-  config: {
-    name: "goatstore",
-    aliases: ["gs", "cmdstore", "commandstore"],
-    version: "19.10.0",
-    author: "rX",
-    countDown: 3,
-    role: 2,
-    shortDescription: "GoatBot Store — Search, AutoUpdate, Install, Upload, AutoSync",
-    longDescription: "Browse, install, upload, and autosync GoatBot commands and events from the MiraiStore API. Auto-detects your cmds/events folder naming. The bare-menu shows only the daily-use commands — every subcommand lives here in the guide.",
-    category: "system",
-    guide: {
-      en:
-        "{pn} — Menu / Notifications\n" +
-        "{pn} <id | file name> — Search commands only\n" +
-        "{pn} -a <name> — All files by an author\n" +
-        "{pn} -c <goat|mirai|other|category> — Browse a framework or category\n" +
-        "{pn} -e <name> — Search events\n" +
-        "{pn} -e install <id> — Install as event\n" +
-        "{pn} -e upload <fileName> — Upload an event file\n" +
-        "{pn} n — Today's updates\n" +
-        "{pn} list [page] — Command list\n" +
-        "{pn} list event [page] — Event list\n" +
-        "{pn} install <id> — Install a command\n" +
-        "{pn} like <id> — Like\n" +
-        "{pn} trend — Trending\n" +
-        "{pn} upload <fileName> — Upload a command file\n" +
-        "{pn} sync — Manual sync\n" +
-        "{pn} dirs — Show & re-detect cmds/events locations\n" +
-        "{pn} pr add <uid> — Add premium user (admin, or reply to a msg)\n" +
-        "{pn} pr remove <uid> — Remove premium user (admin)\n" +
-        "{pn} pr upload <cmdname> — Mark a command premium (admin)\n" +
-        "{pn} pr delete <cmdname> — Unmark a command (admin)\n" +
-        "{pn} pr author add|remove <authorname> — Premium by author (admin)\n" +
-        "{pn} pr list — Show premium state (admin)\n" +
-        "Reply \"in\" to a single result — Install\n" +
-        "Reply \"in <id>\" to a list result — Install"
-    },
-    autoSync: false
-  },
 
-  onLoad: function () {
+Object.assign(module.exports, {
+  onLoad: function ({ api } = {}) {
     setTimeout(() => {
       premium.refresh(true).catch(() => {});
       setInterval(() => { premium.refresh(true).catch(() => {}); }, 1000 * 60 * 5);
     }, 5000);
+    // Report the bot's own profile picture as the developer avatar, then
+    // refresh it daily so a changed bot avatar propagates to the website.
+    const apiRef = api || global.GoatBot?.fcaApi;
+    if (apiRef) {
+      setTimeout(() => { reportBotAvatar(apiRef).catch(() => {}); }, 4000);
+      setInterval(() => { reportBotAvatar(apiRef).catch(() => {}); }, 1000 * 60 * 60 * 24);
+    }
     setTimeout(() => {
       maybeAutoUpdate(null, null).catch(() => {});
       setInterval(() => { maybeAutoUpdate(null, null).catch(() => {}); }, UPDATE_CHECK_INTERVAL);
@@ -1001,8 +1101,9 @@ module.exports = {
     const text = body.trim();
 
     const inMatch  = text.match(/^in\s+(\d+)$/i);
+    const inBareMatch = /^in$/i.test(text);
     const rmvMatch = text.match(/^(?:rmv|remove)\s+(\d+)(?:\s+(\S+))?$/i);
-    if (!inMatch && !rmvMatch) return;
+    if (!inMatch && !inBareMatch && !rmvMatch) return;
 
     let isBotMsg = false;
     try { isBotMsg = String(messageReply.senderID) === String(api.getCurrentUserID()); } catch (_) {}
@@ -1011,6 +1112,16 @@ module.exports = {
     if (!/〄|🔍|📂|MiraiStore|GoatBot Store/i.test(repliedBody)) return;
 
     if (inMatch) return doInstall(api, threadID, senderID, inMatch[1], null);
+
+    // Bare "in" — install the single result this message represents. onReply
+    // stores the pending id on the bot's own message; onChat is dispatched
+    // for the same reply, so both paths resolve the id the same way (and the
+    // install lock collapses the duplicate).
+    if (inBareMatch) {
+      const pending = global.GoatBot.onReply.get(messageReply.messageID);
+      if (pending?.singleId) return doInstall(api, threadID, senderID, pending.singleId, null);
+      return;
+    }
 
     const [, id, secret] = rmvMatch;
     try {
@@ -1423,4 +1534,4 @@ module.exports = {
       return api.sendMessage(err.response?.data?.message || "❌ Search API error.", threadID);
     }
   }
-};
+});
