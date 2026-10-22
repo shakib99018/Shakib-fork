@@ -1,19 +1,21 @@
+"use strict";
+
 const fs = require("fs-extra");
 const path = require("path");
 const axios = require("axios");
 
-const VIDEO_URL = "https://files.catbox.moe/vnulw5.dat";
+const GIF_URL = "https://i.imgur.com/pTHPhb7.gif";
 const CACHE_DIR = path.join(__dirname, "cache");
-const VIDEO_PATH = path.join(CACHE_DIR, "prefix.mp4");
+const GIF_PATH = path.join(CACHE_DIR, "prefix.gif");
 
 module.exports = {
   config: {
     name: "prefix",
-    version: "1.1",
+    version: "2.3",
     author: "Shakib",
-    countDown: 5,
+    countDown: 3,
     role: 0,
-    description: "Show bot prefix with video",
+    description: "Show prefix with GIF",
     category: "config"
   },
 
@@ -21,43 +23,51 @@ module.exports = {
     const prefix = global.GoatBot.config.prefix;
     let groupPrefix = prefix;
     let groupName = "Unknown Group";
-    let attachment;
 
     try {
       groupPrefix = global.utils.getPrefix(event.threadID);
       const info = await threadsData.get(event.threadID);
       groupName = info?.threadName || groupName;
-    } catch (e) {}
+    } catch (e) {
+      console.log(e.message);
+    }
 
     try {
       await fs.ensureDir(CACHE_DIR);
+
       if (
-        !(await fs.pathExists(VIDEO_PATH)) ||
-        (await fs.stat(VIDEO_PATH)).size < 1000
+        !(await fs.pathExists(GIF_PATH)) ||
+        (await fs.stat(GIF_PATH)).size < 1000
       ) {
-        const response = await axios.get(VIDEO_URL, {
+        const response = await axios.get(GIF_URL, {
           responseType: "arraybuffer",
-          timeout: 60000
+          timeout: 60000,
+          headers: {
+            "User-Agent": "Mozilla/5.0"
+          }
         });
-        await fs.writeFile(VIDEO_PATH, response.data);
+
+        await fs.writeFile(GIF_PATH, response.data);
       }
-      attachment = fs.createReadStream(VIDEO_PATH);
+
+      const reply = {
+        body:
+          "╭━━〔 🤖 PREFIX 〕━━╮\n" +
+          "🏷️ Group: " + groupName + "\n" +
+          "🔰 System: " + prefix + "\n" +
+          "💬 Group: " + groupPrefix + "\n" +
+          "👑 Owner: Shakib\n" +
+          "⚡ Status: ONLINE\n" +
+          "╰━━〔 ✨ Shakib 〕━━╯",
+        attachment: fs.createReadStream(GIF_PATH)
+      };
+
+      return message.reply(reply);
     } catch (error) {
-      console.error("PREFIX VIDEO ERROR:", error.message);
+      console.error("PREFIX GIF ERROR:", error.message);
+      return message.reply(
+        "❌ GIF পাঠানো যায়নি!\nError: " + error.message
+      );
     }
-
-    const reply = {
-      body:
-        "╭━━〔 🤖 PREFIX 〕━━╮\n" +
-        "🏷️ Group: " + groupName + "\n" +
-        "🔰 System: " + prefix + "\n" +
-        "💬 Group: " + groupPrefix + "\n" +
-        "👑 Owner: Shakib\n" +
-        "⚡ Status: ONLINE\n" +
-        "╰━━〔 ✨ Shakib 〕━━╯"
-    };
-
-    if (attachment) reply.attachment = attachment;
-    return message.reply(reply);
   }
 };
