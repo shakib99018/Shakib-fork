@@ -38,14 +38,14 @@ module.exports = {
                 "👑 Member: #{memberCount}\n" +
                 "💌 Invited by: {inviterName}\n\n" +
                 "🌌 Enjoy your stay!\n\n" +
-                "╰━━━━━━ 𝐌𝐚𝐑𝐮𝐅 ━━━━━━╯",
+                "╰━━━━━━ _SHAKIB CHAT BOT_ ━━━━━━╯",
 
             botAddedMessage:
                 "╭━━━〔 🤖 VIP BOT ONLINE 〕━━━╮\n\n" +
                 "💜 Thanks for adding me!\n\n" +
                 "⚙️ Prefix: {prefix}\n" +
                 "📜 Help: {prefix}help\n\n" +
-                "╰━━━━━━ 𝐌𝐚𝐑𝐮𝐅 ━━━━━━╯"
+                "╰━━━━━━ _SHAKIB CHAT BOT_ ━━━━━━╯"
         }
     },
 
